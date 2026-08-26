@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minerva Game — Shared Whiteboard</title>
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif; background: #1a1a2e; color: #eee; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    .app-bar { background: #16213e; padding: 10px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #0f3460; }
+    .app-bar h1 { font-size: 1.1rem; font-weight: 600; color: #e94560; }
+    .app-bar .status { font-size: 0.8rem; opacity: 0.7; margin-left: auto; }
+    .app-bar .peer-count { font-size: 0.8rem; opacity: 0.7; margin-left: 12px; }
+    .main { flex: 1; display: flex; overflow: hidden; }
+    .canvas-area { flex: 1; position: relative; cursor: crosshair; }
+    canvas { display: block; width: 100%; height: 100%; background: #1a1a2e; }
+    .sidebar { width: 220px; background: #16213e; border-left: 1px solid #0f3460; display: flex; flex-direction: column; overflow-y: auto; }
+    .sidebar-section { padding: 12px; border-bottom: 1px solid #0f3460; }
+    .sidebar-section h3 { font-size: 0.7rem; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .scoreboard { list-style: none; }
+    .scoreboard li { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.85rem; }
+    .scoreboard .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .scoreboard .name { flex: 1; font-family: monospace; font-size: 0.75rem; }
+    .scoreboard .score { font-weight: 700; color: #e94560; font-size: 0.9rem; }
+    .tool-bar { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .tool-bar label { font-size: 0.75rem; color: #888; }
+    .color-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+    .color-swatch { width: 28px; height: 28px; border-radius: 4px; border: 2px solid transparent; cursor: pointer; transition: border-color 0.15s; }
+    .color-swatch.active { border-color: #fff; }
+    .color-swatch:hover { border-color: rgba(255,255,255,0.5); }
+    .size-slider { width: 100%; margin-top: 4px; }
+    .btn { padding: 8px 12px; border: 1px solid #0f3460; border-radius: 6px; background: #16213e; color: #eee; font-size: 0.8rem; cursor: pointer; text-align: center; transition: background 0.15s; }
+    .btn:hover { background: #0f3460; }
+    .btn-danger { border-color: #e94560; color: #e94560; }
+    .btn-danger:hover { background: #e94560; color: #fff; }
+    .instructions { font-size: 0.7rem; color: #666; line-height: 1.5; padding: 12px; }
+    @media (max-width: 600px) { .sidebar { display: none; } }
+</style>
+</head>
+<body>
+
+<div class="app-bar">
+    <h1>Minerva Whiteboard</h1>
+    <span class="status" id="status-text">Initialising...</span>
+    <span class="peer-count" id="peer-count">0 peers</span>
+</div>
+
+<div class="main">
+    <div class="canvas-area">
+        <canvas id="canvas"></canvas>
+    </div>
+    <div class="sidebar">
+        <div class="sidebar-section">
+            <h3>Scoreboard</h3>
+            <ul class="scoreboard" id="scoreboard"></ul>
+        </div>
+        <div class="sidebar-section tool-bar">
+            <label>Brush Color</label>
+            <div class="color-picker" id="color-picker"></div>
+            <label>Brush Size</label>
+            <input type="range" class="size-slider" id="size-slider" min="2" max="20" value="4">
+            <button class="btn" id="btn-score">+1 Point</button>
+            <button class="btn btn-danger" id="btn-clear">Clear Board</button>
+        </div>
+        <div class="instructions">
+            Click and drag to draw. All strokes sync in real-time with peers via CRDT.
+            Press "+1 Point" to increment your score (GCounter).
+        </div>
+    </div>
+</div>
+
+<script src="../../wasm/wasm_exec.js"></script>
+<script src="../../wasm/minerva.js"></script>
+<script>
+(function () {
+    'use strict';
+
+    // --- DOM refs ---
+    var canvas = document.getElementById('canvas');
+    var ctx = canvas.getContext('2d');
+    var statusText = document.getElementById('status-text');
+    var peerCountEl = document.getElementById('peer-count');
+    var scoreboardEl = document.getElementById('scoreboard');
+    var colorPickerEl = document.getElementById('color-picker');
+    var sizeSlider = document.getElementById('size-slider');
+    var btnScore = document.getElementById('btn-score');
+    var btnClear = document.getElementById('btn-clear');
+
+    // --- State ---
+    var node = null;
+    var strokesCrdt = null;  // LWW-Map: stroke segments
+    var scoresCrdt = null;   // LWW-Map: scores (simulated GCounter via LWW-Map since WASM bridge uses collections)
+    var cursorsCrdt = null;  // LWW-Map: cursor positions
+    var localPeerID = '';
+    var drawing = false;
+    var lastX = 0, lastY = 0;
+    var strokeSeq = 0;
+
+    var brushColor = '#e94560';
+    var brushSize = 4;
+
+    var localStrokes = {};  // key -> {x1,y1,x2,y2,color,size}
+    var peerScores = {};    // peerID -> score
+    var peerCursors = {};   // peerID -> {x, y, color}
+
+    // --- Colors ---
+    var colors = ['#e94560', '#0f3460', '#00bcd4', '#4caf50', '#ff9800', '#9c27b0', '#f44336', '#ffeb3b', '#ffffff'];
+
+    function initColorPicker() {
+        for (var i = 0; i < colors.length; i++) {
+            var swatch = document.createElement('div');
+            swatch.className = 'color-swatch' + (colors[i] === brushColor ? ' active' : '');
+            swatch.style.background = colors[i];
+            swatch.dataset.color = colors[i];
+            swatch.addEventListener('click', function () {
+                brushColor = this.dataset.color;
+                var swatches = colorPickerEl.querySelectorAll('.color-swatch');
+                for (var j = 0; j < swatches.length; j++) swatches[j].classList.remove('active');
+                this.classList.add('active');
+            });
+            colorPickerEl.appendChild(swatch);
+        }
+    }
+
+    // --- Peer colors for scoreboard ---
+    var peerColors = {};
+    var peerColorIdx = 0;
+    var scoreboardColors = ['#e94560', '#00bcd4', '#4caf50', '#ff9800', '#9c27b0', '#f44336', '#ffeb3b', '#3f51b5'];
+
+    function getPeerColor(pid) {
+        if (!peerColors[pid]) {
+            peerColors[pid] = scoreboardColors[peerColorIdx % scoreboardColors.length];
+            peerColorIdx++;
+        }
+        return peerColors[pid];
+    }
+
+    // --- Canvas ---
+    function resizeCanvas() {
+        var rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        redraw();
+    }
+
+    function drawSegment(seg) {
+        ctx.beginPath();
+        ctx.moveTo(seg.x1, seg.y1);
+        ctx.lineTo(seg.x2, seg.y2);
+        ctx.strokeStyle = seg.color || '#e94560';
+        ctx.lineWidth = seg.size || 4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+    }
+
+    function redraw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw grid
+        ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+        ctx.lineWidth = 1;
+        for (var x = 0; x < canvas.width; x += 40) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+        }
+        for (var y = 0; y < canvas.height; y += 40) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+        }
+
+        // Draw all strokes
+        var keys = Object.keys(localStrokes);
+        for (var i = 0; i < keys.length; i++) {
+            drawSegment(localStrokes[keys[i]]);
+        }
+
+        // Draw peer cursors
+        var pids = Object.keys(peerCursors);
+        for (var j = 0; j < pids.length; j++) {
+            var c = peerCursors[pids[j]];
+            if (Date.now() - (c.ts || 0) > 10000) continue; // stale
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, 6, 0, Math.PI * 2);
+            ctx.fillStyle = c.color || '#fff';
+            ctx.globalAlpha = 0.6;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            // Label
+            ctx.font = '10px monospace';
+            ctx.fillStyle = c.color || '#fff';
+            ctx.fillText(pids[j].substring(0, 6), c.x + 10, c.y + 4);
+        }
+    }
+
+    // --- Drawing handlers ---
+    function getPos(e) {
+        var rect = canvas.getBoundingClientRect();
+        var clientX = e.clientX !== undefined ? e.clientX : (e.touches ? e.touches[0].clientX : 0);
+        var clientY = e.clientY !== undefined ? e.clientY : (e.touches ? e.touches[0].clientY : 0);
+        return {
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height)
+        };
+    }
+
+    function startDraw(e) {
+        e.preventDefault();
+        drawing = true;
+        var pos = getPos(e);
+        lastX = pos.x;
+        lastY = pos.y;
+    }
+
+    function moveDraw(e) {
+        e.preventDefault();
+        var pos = getPos(e);
+
+        // Broadcast cursor position
+        broadcastCursor(pos.x, pos.y);
+
+        if (!drawing) return;
+
+        var seg = {
+            x1: lastX, y1: lastY,
+            x2: pos.x, y2: pos.y,
+            color: brushColor,
+            size: brushSize
+        };
+
+        var key = localPeerID + ':' + (strokeSeq++);
+        localStrokes[key] = seg;
+        drawSegment(seg);
+
+        // Broadcast stroke
+        if (strokesCrdt) {
+            strokesCrdt.set(key, JSON.stringify(seg));
+        }
+
+        lastX = pos.x;
+        lastY = pos.y;
+    }
+
+    function endDraw(e) {
+        if (e) e.preventDefault();
+        drawing = false;
+    }
+
+    function broadcastCursor(x, y) {
+        if (!cursorsCrdt || !localPeerID) return;
+        cursorsCrdt.set(localPeerID, JSON.stringify({
+            x: Math.round(x), y: Math.round(y),
+            color: brushColor, ts: Date.now()
+        }));
+    }
+
+    // --- Scoreboard ---
+    function renderScoreboard() {
+        var peers = node ? node.peers : [];
+        peerCountEl.textContent = peers.length + ' peer' + (peers.length !== 1 ? 's' : '');
+
+        // Collect all known score entries
+        var entries = [];
+        var pids = Object.keys(peerScores);
+        for (var i = 0; i < pids.length; i++) {
+            entries.push({ pid: pids[i], score: peerScores[pids[i]] });
+        }
+        // Ensure self is present
+        if (!peerScores[localPeerID] && localPeerID) {
+            entries.push({ pid: localPeerID, score: 0 });
+        }
+        // Sort by score descending
+        entries.sort(function (a, b) { return b.score - a.score; });
+
+        var html = '';
+        for (var j = 0; j < entries.length; j++) {
+            var e = entries[j];
+            var color = getPeerColor(e.pid);
+            var label = e.pid === localPeerID ? e.pid.substring(0, 8) + ' (you)' : e.pid.substring(0, 8);
+            html += '<li><span class="dot" style="background:' + color + '"></span>' +
+                    '<span class="name">' + label + '</span>' +
+                    '<span class="score">' + (e.score || 0) + '</span></li>';
+        }
+        scoreboardEl.innerHTML = html;
+    }
+
+    // --- Score increment ---
+    function incrementScore() {
+        if (!localPeerID) return;
+        var current = peerScores[localPeerID] || 0;
+        current++;
+        peerScores[localPeerID] = current;
+
+        if (scoresCrdt) {
+            scoresCrdt.set(localPeerID, JSON.stringify({ score: current, ts: Date.now() }));
+        }
+        renderScoreboard();
+    }
+
+    // --- Clear board ---
+    function clearBoard() {
+        localStrokes = {};
+        strokeSeq = 0;
+        redraw();
+        // Note: this only clears locally. In a real app you'd tombstone all stroke keys.
+    }
+
+    // --- Init ---
+    function init() {
+        statusText.textContent = 'Loading WASM...';
+        initColorPicker();
+        resizeCanvas();
+
+        node = new MinervaNode({
+            appId: 'minerva-whiteboard-demo',
+            enablePEX: true
+        });
+
+        node.onPeerConnect(function () { renderScoreboard(); });
+        node.onPeerDisconnect(function () { renderScoreboard(); });
+
+        node.start().then(function () {
+            localPeerID = node.peerID;
+            statusText.textContent = 'Online';
+            peerScores[localPeerID] = 0;
+
+            strokesCrdt = node.store.lwwMap('whiteboard-strokes');
+            scoresCrdt = node.store.lwwMap('whiteboard-scores');
+            cursorsCrdt = node.store.lwwMap('whiteboard-cursors');
+
+            // Listen for remote strokes
+            node.onStateChange('whiteboard-strokes', function (key, value) {
+                if (!value) return;
+                try {
+                    var seg = JSON.parse(new TextDecoder().decode(value));
+                    localStrokes[key] = seg;
+                    drawSegment(seg);
+                } catch (e) { /* skip */ }
+            });
+
+            // Listen for remote scores
+            node.onStateChange('whiteboard-scores', function (key, value) {
+                if (!value) return;
+                try {
+                    var data = JSON.parse(new TextDecoder().decode(value));
+                    // GCounter semantics: take max
+                    var current = peerScores[key] || 0;
+                    if (data.score > current) {
+                        peerScores[key] = data.score;
+                    }
+                    renderScoreboard();
+                } catch (e) { /* skip */ }
+            });
+
+            // Listen for remote cursors
+            node.onStateChange('whiteboard-cursors', function (key, value) {
+                if (!value || key === localPeerID) return;
+                try {
+                    peerCursors[key] = JSON.parse(new TextDecoder().decode(value));
+                } catch (e) { /* skip */ }
+            });
+
+            // Load existing strokes
+            strokesCrdt.all().then(function (entries) {
+                for (var i = 0; i < entries.length; i++) {
+                    try {
+                        var seg = JSON.parse(new TextDecoder().decode(entries[i].value));
+                        localStrokes[entries[i].key] = seg;
+                    } catch (e) { /* skip */ }
+                }
+                redraw();
+            });
+
+            // Load existing scores
+            scoresCrdt.all().then(function (entries) {
+                for (var i = 0; i < entries.length; i++) {
+                    try {
+                        var data = JSON.parse(new TextDecoder().decode(entries[i].value));
+                        var current = peerScores[entries[i].key] || 0;
+                        if (data.score > current) peerScores[entries[i].key] = data.score;
+                    } catch (e) { /* skip */ }
+                }
+                renderScoreboard();
+            });
+
+            renderScoreboard();
+        }).catch(function (err) {
+            statusText.textContent = 'Error: ' + err.message;
+            console.error('Minerva init failed:', err);
+        });
+    }
+
+    // --- Event bindings ---
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', moveDraw);
+    canvas.addEventListener('mouseup', endDraw);
+    canvas.addEventListener('mouseleave', endDraw);
+    canvas.addEventListener('touchstart', startDraw, { passive: false });
+    canvas.addEventListener('touchmove', moveDraw, { passive: false });
+    canvas.addEventListener('touchend', endDraw);
+
+    sizeSlider.addEventListener('input', function () {
+        brushSize = parseInt(this.value, 10);
+    });
+
+    btnScore.addEventListener('click', incrementScore);
+    btnClear.addEventListener('click', clearBoard);
+
+    window.addEventListener('resize', resizeCanvas);
+
+    // Periodic redraw for cursor animations
+    setInterval(function () {
+        redraw();
+        renderScoreboard();
+    }, 3000);
+
+    // Boot
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minerva Editor — Collaborative Text</title>
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif; background: #f5f5f5; color: #222; height: 100vh; display: flex; flex-direction: column; }
+    .app-bar { background: #2e7d32; color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+    .app-bar h1 { font-size: 1.15rem; font-weight: 600; }
+    .app-bar .status { font-size: 0.8rem; opacity: 0.85; margin-left: auto; }
+    .app-bar .peer-count { font-size: 0.8rem; opacity: 0.85; margin-left: 12px; }
+    .toolbar { background: #fff; border-bottom: 1px solid #ddd; padding: 8px 16px; display: flex; gap: 8px; align-items: center; }
+    .toolbar .doc-title { font-size: 0.85rem; font-weight: 600; color: #444; }
+    .toolbar .cursor-count { font-size: 0.75rem; color: #888; margin-left: auto; }
+    .editor-container { flex: 1; display: flex; overflow: hidden; }
+    .editor-pane { flex: 1; display: flex; flex-direction: column; }
+    .editor { flex: 1; padding: 24px 32px; font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace; font-size: 1rem; line-height: 1.7; background: #fff; border: none; outline: none; resize: none; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; color: #333; }
+    .editor:focus { box-shadow: inset 0 0 0 2px rgba(46, 125, 50, 0.2); }
+    .sidebar { width: 240px; background: #fafafa; border-left: 1px solid #ddd; display: flex; flex-direction: column; }
+    .sidebar-section { padding: 12px; border-bottom: 1px solid #eee; }
+    .sidebar-section h3 { font-size: 0.75rem; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .peer-list { list-style: none; }
+    .peer-list li { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.8rem; }
+    .peer-list .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .peer-list .name { font-family: monospace; font-size: 0.75rem; word-break: break-all; }
+    .stats { font-size: 0.8rem; color: #666; }
+    .stats div { padding: 2px 0; }
+    .stats .label { color: #999; }
+    @media (max-width: 700px) { .sidebar { display: none; } }
+</style>
+</head>
+<body>
+
+<div class="app-bar">
+    <h1>Minerva Editor</h1>
+    <span class="status" id="status-text">Initialising...</span>
+    <span class="peer-count" id="peer-count">0 peers</span>
+</div>
+<div class="toolbar">
+    <span class="doc-title">Shared Document</span>
+    <span class="cursor-count" id="cursor-count"></span>
+</div>
+<div class="editor-container">
+    <div class="editor-pane">
+        <textarea class="editor" id="editor" placeholder="Start typing... changes sync in real-time with peers." disabled></textarea>
+    </div>
+    <div class="sidebar">
+        <div class="sidebar-section">
+            <h3>Connected Peers</h3>
+            <ul class="peer-list" id="peer-list"></ul>
+        </div>
+        <div class="sidebar-section">
+            <h3>Document Stats</h3>
+            <div class="stats" id="stats">
+                <div><span class="label">Characters:</span> <span id="stat-chars">0</span></div>
+                <div><span class="label">Lines:</span> <span id="stat-lines">1</span></div>
+                <div><span class="label">Ops synced:</span> <span id="stat-ops">0</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../../wasm/wasm_exec.js"></script>
+<script src="../../wasm/minerva.js"></script>
+<script>
+(function () {
+    'use strict';
+
+    // --- DOM refs ---
+    var editor = document.getElementById('editor');
+    var statusText = document.getElementById('status-text');
+    var peerCountEl = document.getElementById('peer-count');
+    var peerListEl = document.getElementById('peer-list');
+    var cursorCountEl = document.getElementById('cursor-count');
+    var statChars = document.getElementById('stat-chars');
+    var statLines = document.getElementById('stat-lines');
+    var statOps = document.getElementById('stat-ops');
+
+    var node = null;
+    var docCrdt = null;     // OR-Set for sequence operations
+    var presenceCrdt = null; // LWW-Map for cursor positions
+    var localPeerID = '';
+    var opCount = 0;
+    var suppressSync = false;
+
+    // --- Peer colours for cursor indicators ---
+    var peerColors = [
+        '#e91e63', '#9c27b0', '#3f51b5', '#00bcd4',
+        '#ff9800', '#795548', '#607d8b', '#f44336'
+    ];
+    var peerColorMap = {};
+    var colorIndex = 0;
+
+    function getPeerColor(peerID) {
+        if (!peerColorMap[peerID]) {
+            peerColorMap[peerID] = peerColors[colorIndex % peerColors.length];
+            colorIndex++;
+        }
+        return peerColorMap[peerID];
+    }
+
+    // --- Sequence CRDT simulation in JS ---
+    // This mirrors the Go RGA Sequence CRDT for local editing.
+    // Remote ops come through the OR-Set as serialised SeqOps.
+
+    var seqNodes = {};       // id -> {id, value, leftId, children:[], deleted, hlc}
+    var seqRoot = { id: '__root__', value: '', leftId: '', children: [], deleted: false, hlc: 0 };
+    seqNodes['__root__'] = seqRoot;
+    var localHLC = 0;
+
+    function nextHLC() {
+        var now = Date.now();
+        if (now > (localHLC >> 16)) {
+            localHLC = (now << 16);
+        } else {
+            localHLC++;
+        }
+        return localHLC;
+    }
+
+    function insertChild(parent, node) {
+        var i = 0;
+        while (i < parent.children.length) {
+            if (node.hlc > parent.children[i].hlc) break;
+            if (node.hlc === parent.children[i].hlc && node.id > parent.children[i].id) break;
+            i++;
+        }
+        parent.children.splice(i, 0, node);
+    }
+
+    function walkTree(node, fn) {
+        fn(node);
+        for (var i = 0; i < node.children.length; i++) {
+            walkTree(node.children[i], fn);
+        }
+    }
+
+    function getVisibleNodes() {
+        var nodes = [];
+        walkTree(seqRoot, function (n) {
+            if (n !== seqRoot && !n.deleted) nodes.push(n);
+        });
+        return nodes;
+    }
+
+    function getText() {
+        var chars = [];
+        walkTree(seqRoot, function (n) {
+            if (n !== seqRoot && !n.deleted) chars.push(n.value);
+        });
+        return chars.join('');
+    }
+
+    function nodeAtPos(pos) {
+        if (pos <= 0) return seqRoot;
+        var visible = getVisibleNodes();
+        if (pos > visible.length) pos = visible.length;
+        if (pos === 0) return seqRoot;
+        return visible[pos - 1];
+    }
+
+    function localInsert(pos, char) {
+        var hlc = nextHLC();
+        var left = nodeAtPos(pos);
+        var id = localPeerID + ':' + hlc.toString(16);
+        var n = { id: id, value: char, leftId: left.id, children: [], deleted: false, hlc: hlc };
+        seqNodes[id] = n;
+        n.left = left;
+        insertChild(left, n);
+        opCount++;
+        return { type: 0, nodeId: id, value: char, leftId: left.id, hlc: hlc };
+    }
+
+    function localDelete(pos) {
+        var visible = getVisibleNodes();
+        if (pos < 0 || pos >= visible.length) return null;
+        var n = visible[pos];
+        n.deleted = true;
+        var hlc = nextHLC();
+        opCount++;
+        return { type: 1, nodeId: n.id, value: '', leftId: '', hlc: hlc };
+    }
+
+    function mergeOp(op) {
+        if (op.type === 0) {
+            // Insert
+            if (seqNodes[op.nodeId]) return; // already have it
+            var left = seqNodes[op.leftId];
+            if (!left) return; // missing parent, skip
+            var n = { id: op.nodeId, value: op.value, leftId: op.leftId, children: [], deleted: false, hlc: op.hlc };
+            seqNodes[op.nodeId] = n;
+            n.left = left;
+            insertChild(left, n);
+        } else if (op.type === 1) {
+            // Delete
+            var target = seqNodes[op.nodeId];
+            if (target) target.deleted = true;
+        }
+        if (op.hlc > localHLC) localHLC = op.hlc;
+        opCount++;
+    }
+
+    // --- UI updates ---
+    function updateStats() {
+        var text = editor.value;
+        statChars.textContent = text.length;
+        statLines.textContent = (text.match(/\n/g) || []).length + 1;
+        statOps.textContent = opCount;
+    }
+
+    function renderPeers() {
+        var peers = node ? node.peers : [];
+        peerCountEl.textContent = peers.length + ' peer' + (peers.length !== 1 ? 's' : '');
+
+        var html = '';
+        // Add self
+        html += '<li><span class="dot" style="background:#4caf50"></span><span class="name">' +
+                (localPeerID ? localPeerID.substring(0, 12) : '...') + ' (you)</span></li>';
+        for (var i = 0; i < peers.length; i++) {
+            var pid = typeof peers[i] === 'string' ? peers[i] : (peers[i].id || '');
+            var color = getPeerColor(pid);
+            html += '<li><span class="dot" style="background:' + color + '"></span><span class="name">' +
+                    pid.substring(0, 12) + '</span></li>';
+        }
+        peerListEl.innerHTML = html;
+    }
+
+    function syncEditorFromCRDT() {
+        var cursorPos = editor.selectionStart;
+        suppressSync = true;
+        editor.value = getText();
+        // Restore cursor position (approximate).
+        if (cursorPos > editor.value.length) cursorPos = editor.value.length;
+        editor.selectionStart = cursorPos;
+        editor.selectionEnd = cursorPos;
+        suppressSync = false;
+        updateStats();
+    }
+
+    // --- Editor input handling ---
+    var lastValue = '';
+    var lastCursor = 0;
+
+    function handleInput() {
+        if (suppressSync) return;
+
+        var newValue = editor.value;
+        var newCursor = editor.selectionStart;
+
+        // Diff: find what changed
+        // Simple approach: compare from cursor position
+        if (newValue.length > lastValue.length) {
+            // Insertion
+            var insertCount = newValue.length - lastValue.length;
+            var insertPos = newCursor - insertCount;
+            if (insertPos < 0) insertPos = 0;
+
+            var ops = [];
+            for (var i = 0; i < insertCount; i++) {
+                var op = localInsert(insertPos + i, newValue.charAt(insertPos + i));
+                ops.push(op);
+            }
+            broadcastOps(ops);
+        } else if (newValue.length < lastValue.length) {
+            // Deletion
+            var deleteCount = lastValue.length - newValue.length;
+            var deletePos = newCursor;
+
+            var ops = [];
+            for (var i = 0; i < deleteCount; i++) {
+                var op = localDelete(deletePos);
+                if (op) ops.push(op);
+            }
+            broadcastOps(ops);
+        }
+
+        lastValue = newValue;
+        lastCursor = newCursor;
+        updateStats();
+    }
+
+    function broadcastOps(ops) {
+        if (!docCrdt || !ops.length) return;
+        for (var i = 0; i < ops.length; i++) {
+            var key = ops[i].nodeId || ('del:' + ops[i].nodeId + ':' + ops[i].hlc);
+            var payload = JSON.stringify(ops[i]);
+            docCrdt.set(key, payload);
+        }
+    }
+
+    // --- Broadcast cursor position ---
+    function broadcastCursor() {
+        if (!presenceCrdt || !localPeerID) return;
+        var data = JSON.stringify({
+            peerID: localPeerID,
+            cursor: editor.selectionStart,
+            timestamp: Date.now()
+        });
+        presenceCrdt.set(localPeerID, data);
+    }
+
+    // --- Initialise ---
+    function init() {
+        statusText.textContent = 'Loading WASM...';
+
+        node = new MinervaNode({
+            appId: 'minerva-editor-demo',
+            enablePEX: true
+        });
+
+        node.onPeerConnect(function () { renderPeers(); });
+        node.onPeerDisconnect(function () { renderPeers(); });
+
+        node.start().then(function () {
+            localPeerID = node.peerID;
+            statusText.textContent = 'Online';
+            editor.disabled = false;
+            editor.focus();
+
+            docCrdt = node.store.lwwMap('editor-ops');
+            presenceCrdt = node.store.lwwMap('editor-cursors');
+
+            // Listen for remote changes.
+            node.onStateChange('editor-ops', function (key, value) {
+                if (!value) return;
+                try {
+                    var text = new TextDecoder().decode(value);
+                    var op = JSON.parse(text);
+                    mergeOp(op);
+                    syncEditorFromCRDT();
+                } catch (e) {
+                    // Ignore malformed ops.
+                }
+            });
+
+            node.onStateChange('editor-cursors', function (key, value) {
+                // Could render remote cursor positions here.
+                renderPeers();
+            });
+
+            // Poll for initial state.
+            docCrdt.all().then(function (entries) {
+                for (var i = 0; i < entries.length; i++) {
+                    try {
+                        var text = new TextDecoder().decode(entries[i].value);
+                        var op = JSON.parse(text);
+                        mergeOp(op);
+                    } catch (e) {
+                        // skip
+                    }
+                }
+                syncEditorFromCRDT();
+                lastValue = editor.value;
+            });
+
+            renderPeers();
+            updateStats();
+        }).catch(function (err) {
+            statusText.textContent = 'Error: ' + err.message;
+            console.error('Minerva init failed:', err);
+        });
+    }
+
+    // --- Event bindings ---
+    editor.addEventListener('input', handleInput);
+    editor.addEventListener('keyup', broadcastCursor);
+    editor.addEventListener('click', broadcastCursor);
+
+    setInterval(renderPeers, 5000);
+
+    // Boot.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>
+</body>
+</html>

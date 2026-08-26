@@ -1,0 +1,20 @@
+syntax = "proto3";
+package minerva.gossip.v1;
+option go_package = "github.com/aether-protocol/minerva/gossip/proto";
+
+message CRDTDelta {
+    string collection = 1;
+    int32 crdt_type = 2;
+    string key = 3;
+    bytes value = 4;
+    uint64 hlc = 5;
+    string node_id = 6;
+    bool tombstone = 7;
+}
+
+message GossipEnvelope {
+    string app_id = 1;
+    repeated CRDTDelta deltas = 2;
+    uint64 fingerprint = 3;
+    string sender_id = 4;
+}

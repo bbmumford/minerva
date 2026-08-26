@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minerva Chat — P2P Messenger</title>
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif; background: #f0f2f5; color: #222; height: 100vh; display: flex; flex-direction: column; }
+    .app-bar { background: #1976d2; color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+    .app-bar h1 { font-size: 1.15rem; font-weight: 600; }
+    .app-bar .status { font-size: 0.8rem; opacity: 0.85; margin-left: auto; }
+    .main { flex: 1; display: flex; overflow: hidden; }
+    .sidebar { width: 220px; background: #fff; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+    .sidebar-header { padding: 12px; font-size: 0.8rem; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #eee; }
+    .peer-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .peer-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 6px; font-size: 0.85rem; }
+    .peer-item .dot { width: 8px; height: 8px; border-radius: 50%; background: #4caf50; flex-shrink: 0; }
+    .peer-item .dot.stale { background: #ff9800; }
+    .peer-item .dot.offline { background: #ccc; }
+    .peer-item .name { flex: 1; word-break: break-all; font-family: monospace; font-size: 0.75rem; }
+    .peer-item .last-seen { font-size: 0.7rem; color: #999; }
+    .self-label { font-size: 0.65rem; color: #1976d2; font-weight: 600; }
+    .chat-area { flex: 1; display: flex; flex-direction: column; }
+    .messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .message { max-width: 75%; padding: 8px 12px; border-radius: 12px; font-size: 0.9rem; word-break: break-word; line-height: 1.4; }
+    .message.mine { background: #1976d2; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .message.theirs { background: #fff; align-self: flex-start; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+    .message .meta { font-size: 0.7rem; opacity: 0.7; margin-top: 2px; }
+    .message.theirs .meta { color: #666; }
+    .input-bar { display: flex; gap: 8px; padding: 12px 16px; background: #fff; border-top: 1px solid #eee; }
+    .input-bar input { flex: 1; padding: 10px 14px; border: 1px solid #ccc; border-radius: 20px; font-size: 0.95rem; outline: none; }
+    .input-bar input:focus { border-color: #1976d2; }
+    .input-bar button { padding: 10px 20px; border: none; border-radius: 20px; background: #1976d2; color: #fff; font-size: 0.95rem; cursor: pointer; }
+    .input-bar button:hover { background: #1565c0; }
+    .input-bar button:disabled { background: #ccc; cursor: default; }
+    .empty-chat { flex: 1; display: flex; align-items: center; justify-content: center; color: #999; font-size: 0.95rem; }
+    @media (max-width: 600px) {
+        .sidebar { display: none; }
+    }
+</style>
+</head>
+<body>
+
+<div class="app-bar">
+    <h1>Minerva Chat</h1>
+    <span class="status" id="status-text">Initialising...</span>
+    <span class="status" id="peer-count">0 peers</span>
+</div>
+
+<div class="main">
+    <div class="sidebar">
+        <div class="sidebar-header">Peers</div>
+        <div class="peer-list" id="peer-list"></div>
+    </div>
+    <div class="chat-area">
+        <div class="messages" id="messages">
+            <div class="empty-chat" id="empty-chat">Loading...</div>
+        </div>
+        <div class="input-bar">
+            <input type="text" id="msg-input" placeholder="Type a message..." disabled>
+            <button id="send-btn" disabled>Send</button>
+        </div>
+    </div>
+</div>
+
+<script src="../../wasm/wasm_exec.js"></script>
+<script src="../../wasm/minerva.js"></script>
+<script>
+(function () {
+    'use strict';
+
+    // --- DOM refs ---
+    var msgInput = document.getElementById('msg-input');
+    var sendBtn = document.getElementById('send-btn');
+    var messagesEl = document.getElementById('messages');
+    var emptyChatEl = document.getElementById('empty-chat');
+    var peerListEl = document.getElementById('peer-list');
+    var statusText = document.getElementById('status-text');
+    var peerCountEl = document.getElementById('peer-count');
+
+    var node = null;
+    var messagesCrdt = null;  // OR-Set for messages
+    var presenceCrdt = null;  // LWW-Map for presence
+    var localPeerID = '';
+    var localMessages = {};   // key -> {from, text, timestamp}
+    var localPresence = {};   // peerID -> {lastSeen, peerID}
+
+    // --- UUID ---
+    function uuid() {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = (Math.random() * 16) | 0;
+            var v = c === 'x' ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+        });
+    }
+
+    // --- Time formatting ---
+    function formatTime(ts) {
+        var d = new Date(ts);
+        var h = d.getHours();
+        var m = d.getMinutes();
+        return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+    }
+
+    function timeAgo(ts) {
+        var diff = Date.now() - ts;
+        if (diff < 60000) return 'just now';
+        if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+        if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+        return Math.floor(diff / 86400000) + 'd ago';
+    }
+
+    // --- Render messages ---
+    function renderMessages() {
+        var keys = Object.keys(localMessages);
+        keys.sort(function (a, b) {
+            return (localMessages[a].timestamp || 0) - (localMessages[b].timestamp || 0);
+        });
+
+        if (keys.length === 0) {
+            emptyChatEl.textContent = 'No messages yet. Say something!';
+            emptyChatEl.style.display = '';
+            return;
+        }
+        emptyChatEl.style.display = 'none';
+
+        // Build new content.
+        var frag = document.createDocumentFragment();
+        for (var i = 0; i < keys.length; i++) {
+            var msg = localMessages[keys[i]];
+            if (!msg) continue;
+
+            var div = document.createElement('div');
+            var isMine = msg.from === localPeerID;
+            div.className = 'message ' + (isMine ? 'mine' : 'theirs');
+
+            var textNode = document.createElement('div');
+            textNode.textContent = msg.text || '';
+            div.appendChild(textNode);
+
+            var meta = document.createElement('div');
+            meta.className = 'meta';
+            var sender = isMine ? 'You' : (msg.from ? msg.from.substring(0, 8) : 'Unknown');
+            meta.textContent = sender + ' \u00b7 ' + formatTime(msg.timestamp || Date.now());
+            div.appendChild(meta);
+
+            frag.appendChild(div);
+        }
+
+        messagesEl.innerHTML = '';
+        messagesEl.appendChild(frag);
+
+        // Scroll to bottom.
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // --- Render peer list ---
+    function renderPeers() {
+        peerListEl.innerHTML = '';
+        var peerIDs = Object.keys(localPresence);
+
+        // Ensure local peer is first.
+        if (localPeerID && peerIDs.indexOf(localPeerID) === -1) {
+            peerIDs.unshift(localPeerID);
+        } else {
+            peerIDs.sort(function (a, b) {
+                if (a === localPeerID) return -1;
+                if (b === localPeerID) return 1;
+                return a.localeCompare(b);
+            });
+        }
+
+        var connectedCount = 0;
+
+        for (var i = 0; i < peerIDs.length; i++) {
+            var pid = peerIDs[i];
+            var presence = localPresence[pid];
+            var isLocal = pid === localPeerID;
+            var lastSeen = presence ? presence.lastSeen : Date.now();
+            var age = Date.now() - lastSeen;
+
+            var item = document.createElement('div');
+            item.className = 'peer-item';
+
+            var dot = document.createElement('span');
+            dot.className = 'dot';
+            if (isLocal) {
+                dot.classList.add('connected');
+            } else if (age > 120000) {
+                dot.classList.add('offline');
+            } else if (age > 30000) {
+                dot.classList.add('stale');
+            }
+
+            var name = document.createElement('span');
+            name.className = 'name';
+            name.textContent = pid.substring(0, 12);
+
+            item.appendChild(dot);
+            item.appendChild(name);
+
+            if (isLocal) {
+                var selfLabel = document.createElement('span');
+                selfLabel.className = 'self-label';
+                selfLabel.textContent = '(you)';
+                item.appendChild(selfLabel);
+            } else {
+                connectedCount++;
+                var ls = document.createElement('span');
+                ls.className = 'last-seen';
+                ls.textContent = timeAgo(lastSeen);
+                item.appendChild(ls);
+            }
+
+            peerListEl.appendChild(item);
+        }
+
+        peerCountEl.textContent = connectedCount + ' peer' + (connectedCount !== 1 ? 's' : '');
+    }
+
+    // --- Send message ---
+    function sendMessage() {
+        var text = msgInput.value.trim();
+        if (!text) return;
+        msgInput.value = '';
+
+        var key = uuid();
+        var msg = { from: localPeerID, text: text, timestamp: Date.now() };
+        localMessages[key] = msg;
+        renderMessages();
+
+        if (messagesCrdt) {
+            messagesCrdt.set(key, new TextEncoder().encode(JSON.stringify(msg))).catch(function (err) {
+                console.error('Failed to send message:', err);
+            });
+        }
+    }
+
+    // --- Update presence ---
+    var presenceInterval = null;
+    function updatePresence() {
+        if (!presenceCrdt || !localPeerID) return;
+        var data = { peerID: localPeerID, lastSeen: Date.now() };
+        localPresence[localPeerID] = data;
+        presenceCrdt.set(localPeerID, new TextEncoder().encode(JSON.stringify(data))).catch(function (err) {
+            console.error('Failed to update presence:', err);
+        });
+        renderPeers();
+    }
+
+    // --- Load history ---
+    function loadMessages() {
+        if (!messagesCrdt) return Promise.resolve();
+        return messagesCrdt.all().then(function (entries) {
+            for (var i = 0; i < entries.length; i++) {
+                try {
+                    var text = new TextDecoder().decode(entries[i].value);
+                    localMessages[entries[i].key] = JSON.parse(text);
+                } catch (_) {}
+            }
+            renderMessages();
+        });
+    }
+
+    function loadPresence() {
+        if (!presenceCrdt) return Promise.resolve();
+        return presenceCrdt.all().then(function (entries) {
+            for (var i = 0; i < entries.length; i++) {
+                try {
+                    var text = new TextDecoder().decode(entries[i].value);
+                    localPresence[entries[i].key] = JSON.parse(text);
+                } catch (_) {}
+            }
+            renderPeers();
+        });
+    }
+
+    // --- Event handlers ---
+    sendBtn.addEventListener('click', sendMessage);
+    msgInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') sendMessage();
+    });
+
+    // --- Init ---
+    function init() {
+        statusText.textContent = 'Loading WASM...';
+
+        initMinerva('../../wasm/minerva.wasm').then(function () {
+            node = new MinervaNode({
+                appId: 'minerva-chat-example',
+                relays: ['wss://relay.example.com/ws'],
+                enablePEX: true,
+            });
+
+            return node.start();
+        }).then(function () {
+            statusText.textContent = 'Connected';
+            localPeerID = node.peerID;
+
+            msgInput.disabled = false;
+            sendBtn.disabled = false;
+
+            messagesCrdt = node.store.orSet('messages');
+            presenceCrdt = node.store.lwwMap('presence');
+
+            // Listen for remote message changes.
+            node.onStateChange('messages', function (key, value) {
+                if (value == null || value.length === 0) {
+                    delete localMessages[key];
+                } else {
+                    try {
+                        var text = new TextDecoder().decode(value);
+                        localMessages[key] = JSON.parse(text);
+                    } catch (_) {}
+                }
+                renderMessages();
+            });
+
+            // Listen for remote presence changes.
+            node.onStateChange('presence', function (key, value) {
+                if (value == null || value.length === 0) {
+                    delete localPresence[key];
+                } else {
+                    try {
+                        var text = new TextDecoder().decode(value);
+                        localPresence[key] = JSON.parse(text);
+                    } catch (_) {}
+                }
+                renderPeers();
+            });
+
+            // Peer events.
+            node.onPeerConnect(function () { renderPeers(); });
+            node.onPeerDisconnect(function () { renderPeers(); });
+
+            // Heartbeat presence every 15 seconds.
+            updatePresence();
+            presenceInterval = setInterval(updatePresence, 15000);
+
+            // Load history from CRDT store.
+            return Promise.all([loadMessages(), loadPresence()]);
+        }).catch(function (err) {
+            statusText.textContent = 'Error: ' + err.message;
+            console.error('Minerva init failed:', err);
+            emptyChatEl.textContent = 'Failed to initialise. See console for details.';
+        });
+    }
+
+    // Cleanup on page unload.
+    window.addEventListener('beforeunload', function () {
+        if (presenceInterval) clearInterval(presenceInterval);
+        if (node) {
+            try { node.stop(); } catch (_) {}
+        }
+    });
+
+    init();
+})();
+</script>
+</body>
+</html>
