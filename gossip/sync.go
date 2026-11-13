@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/bbmumford/minerva/crdt"
 	gossippb "github.com/bbmumford/minerva/gossip/proto"
@@ -191,23 +192,28 @@ type CRDTStateStore struct {
 	appID      string
 }
 
-// Fingerprint returns a fingerprint for delta-sync optimisation.
-// For now, returns 0 (always exchange). The CRDT layer will provide
-// a proper fingerprint once collection-level hashing is implemented.
-func (cs *CRDTStateStore) Fingerprint(topic string) uint64 {
+// Fingerprint returns 0, which whisper's G2 digest never counts as a
+// match, so every digest probe goes on to a G1 exchange.
+// TODO: derive it from the collection's records once crdt.Store holds them.
+func (cs *CRDTStateStore) Fingerprint() uint64 {
 	return 0
 }
 
-// DeltaSince returns records changed since the given watermark.
-// Serialises them as protobuf CRDTDelta messages.
-func (cs *CRDTStateStore) DeltaSince(topic string, since uint64) ([][]byte, uint64, error) {
-	// Placeholder: the full CRDT store integration will provide actual deltas.
-	// For now, return empty — the rumor path handles immediate propagation.
-	return nil, since, nil
+// Snapshot returns no records: this store keeps no collection state of its
+// own, and deltas reach peers through the rumor topic instead.
+// TODO: serialise the collection's records as CRDTDelta messages once
+// crdt.Store holds them.
+func (cs *CRDTStateStore) Snapshot() [][]byte {
+	return nil
+}
+
+// Delta returns the snapshot, for the reason Snapshot states.
+func (cs *CRDTStateStore) Delta(_ time.Time) [][]byte {
+	return cs.Snapshot()
 }
 
 // Apply deserialises and merges an incoming delta into local CRDT state.
-func (cs *CRDTStateStore) Apply(topic string, data []byte) error {
+func (cs *CRDTStateStore) Apply(data []byte) error {
 	var delta gossippb.CRDTDelta
 	if err := proto.Unmarshal(data, &delta); err != nil {
 		return fmt.Errorf("gossip: unmarshal delta: %w", err)

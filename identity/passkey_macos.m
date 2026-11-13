@@ -47,7 +47,7 @@ static void copy_nsdata(NSData* data, uint8_t** out, int* out_len) {
 
 API_AVAILABLE(macos(12.0))
 @interface MinervaPasskeyDelegate : NSObject <ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding>
-@property (nonatomic, strong) id authorization;      // ASAuthorization result
+@property (nonatomic, strong) ASAuthorization* authorization; // set by didCompleteWithAuthorization, read once sem is signalled
 @property (nonatomic, strong) NSError* lastError;
 @property (nonatomic) dispatch_semaphore_t sem;
 @end
