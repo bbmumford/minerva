@@ -1,6 +1,6 @@
 syntax = "proto3";
 package minerva.gossip.v1;
-option go_package = "github.com/aether-protocol/minerva/gossip/proto";
+option go_package = "github.com/bbmumford/minerva/gossip/proto";
 
 message CRDTDelta {
     string collection = 1;
