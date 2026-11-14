@@ -62,27 +62,13 @@ func (sm *SyncManager) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	sm.cancel = cancel
 
-	// Register each CRDT collection as a StatefulMerge topic.
+	// No collection is registered as a StatefulMerge topic: CRDTStateStore
+	// holds none of the collection's records, so such a topic would answer
+	// every digest probe and exchange with nothing and merge nothing it was
+	// sent. Deltas travel on the rumor topic below.
+	// TODO: register each collection with a CRDTStateStore once crdt.Store
+	// holds the collection's records and CRDTStateStore serves and merges them.
 	collections := sm.store.All()
-	for _, col := range collections {
-		topicName := sm.topicName(col.Name)
-		stateStore := &CRDTStateStore{
-			collection: col.Name,
-			crdtType:   col.CRDTType,
-			appID:      sm.appID,
-		}
-
-		err := sm.engine.RegisterTopic(topicName, whisper.TopicConfig{
-			Mode:  whisper.StatefulMerge,
-			Store: stateStore,
-			Rumor: true,
-		})
-		if err != nil {
-			cancel()
-			return fmt.Errorf("gossip: register topic %q: %w", topicName, err)
-		}
-		sm.topics.Subscribe(topicName)
-	}
 
 	// Register the broadcast topic for rumor push of immediate deltas.
 	rumorTopic := sm.rumorTopicName()
@@ -185,7 +171,10 @@ func (rs *rumorSubscriber) OnBroadcast(topic string, from string, payload []byte
 	}
 }
 
-// CRDTStateStore adapts the CRDT layer to whisper.StateStore for StatefulMerge topics.
+// CRDTStateStore adapts the CRDT layer to whisper.StateStore for StatefulMerge
+// topics. It is unfinished: it holds none of the collection's records, so
+// SyncManager.Start registers no topic with it, and Apply refuses every delta
+// rather than report one applied that no CRDT state received.
 type CRDTStateStore struct {
 	collection string
 	crdtType   sdk.CRDTType
@@ -212,7 +201,11 @@ func (cs *CRDTStateStore) Delta(_ time.Time) [][]byte {
 	return cs.Snapshot()
 }
 
-// Apply deserialises and merges an incoming delta into local CRDT state.
+// Apply decodes an incoming delta and refuses it: whisper's G1 handler counts
+// a nil return as a record applied, and no CRDT state holds the collection
+// to merge it into.
+// TODO: merge the delta into the collection's CRDT state once crdt.Store
+// holds it.
 func (cs *CRDTStateStore) Apply(data []byte) error {
 	var delta gossippb.CRDTDelta
 	if err := proto.Unmarshal(data, &delta); err != nil {
@@ -224,9 +217,7 @@ func (cs *CRDTStateStore) Apply(data []byte) error {
 		return fmt.Errorf("gossip: delta collection mismatch: got %q, want %q", delta.Collection, cs.collection)
 	}
 
-	// CRDT apply will be wired when crdt.Store is implemented.
-	_ = delta.Key
-	return nil
+	return fmt.Errorf("gossip: collection %q holds no CRDT state to merge delta %q into", cs.collection, delta.Key)
 }
 
 // marshalEnvelope serialises a GossipEnvelope for wire transmission.

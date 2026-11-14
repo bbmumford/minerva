@@ -72,11 +72,11 @@ func (s *fakeStream) Close() error {
 	return nil
 }
 
-func (s *fakeStream) Reset(aether.ResetReason) error      { return s.Close() }
-func (s *fakeStream) SetPriority(uint8, uint64)           {}
-func (s *fakeStream) Config() aether.StreamConfig         { return aether.StreamConfig{StreamID: s.id} }
-func (s *fakeStream) IsOpen() bool                        { return !s.closed.Load() }
-func (s *fakeStream) Conn() net.Conn                      { return nil }
+func (s *fakeStream) Reset(aether.ResetReason) error { return s.Close() }
+func (s *fakeStream) SetPriority(uint8, uint64)      {}
+func (s *fakeStream) Config() aether.StreamConfig    { return aether.StreamConfig{StreamID: s.id} }
+func (s *fakeStream) IsOpen() bool                   { return !s.closed.Load() }
+func (s *fakeStream) Conn() net.Conn                 { return nil }
 
 func (s *fakeStream) isClosed() bool { return s.closed.Load() }
 
@@ -108,10 +108,24 @@ func (s *fakeSession) AcceptStream(ctx context.Context) (aether.Stream, error) {
 	}
 }
 
-func (s *fakeSession) LocalNodeID() aether.NodeID       { return aether.NodeID("") }
-func (s *fakeSession) RemoteNodeID() aether.NodeID      { return aether.NodeID("") }
-func (s *fakeSession) LocalPeerID() aether.PeerID       { return aether.PeerID{} }
-func (s *fakeSession) RemotePeerID() aether.PeerID      { return aether.PeerID{} }
+// AcceptStreamByID completes aether.Session; Node's accept loop
+// (node.go) calls only AcceptStream, so this takes the next fed stream and
+// refuses it when its ID is not the one asked for.
+func (s *fakeSession) AcceptStreamByID(ctx context.Context, streamID uint64) (aether.Stream, error) {
+	st, err := s.AcceptStream(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if st.StreamID() != streamID {
+		return nil, errors.New("fakeSession: next stream has a different ID")
+	}
+	return st, nil
+}
+
+func (s *fakeSession) LocalNodeID() aether.NodeID        { return aether.NodeID("") }
+func (s *fakeSession) RemoteNodeID() aether.NodeID       { return aether.NodeID("") }
+func (s *fakeSession) LocalPeerID() aether.PeerID        { return aether.PeerID{} }
+func (s *fakeSession) RemotePeerID() aether.PeerID       { return aether.PeerID{} }
 func (s *fakeSession) Capabilities() aether.Capabilities { return 0 }
 func (s *fakeSession) Ping(ctx context.Context) (time.Duration, error) {
 	return 0, errors.New("not implemented")
@@ -126,15 +140,15 @@ func (s *fakeSession) Close() error {
 	close(s.acceptCh)
 	return nil
 }
-func (s *fakeSession) IsClosed() bool                { return s.closed.Load() }
-func (s *fakeSession) Health() *health.Monitor       { return nil }
-func (s *fakeSession) SessionKey() []byte            { return nil }
+func (s *fakeSession) IsClosed() bool          { return s.closed.Load() }
+func (s *fakeSession) Health() *health.Monitor { return nil }
+func (s *fakeSession) SessionKey() []byte      { return nil }
 func (s *fakeSession) ConnectionID() aether.ConnectionID {
 	return aether.ConnectionID{}
 }
-func (s *fakeSession) CongestionWindow() int64         { return 0 }
-func (s *fakeSession) Protocol() aether.Protocol       { return 0 }
-func (s *fakeSession) Metrics() aether.SessionMetrics  { return aether.SessionMetrics{} }
+func (s *fakeSession) CongestionWindow() int64        { return 0 }
+func (s *fakeSession) Protocol() aether.Protocol      { return 0 }
+func (s *fakeSession) Metrics() aether.SessionMetrics { return aether.SessionMetrics{} }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
