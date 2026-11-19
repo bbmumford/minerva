@@ -24,11 +24,11 @@ const (
 type CRDTDelta struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Collection    string                 `protobuf:"bytes,1,opt,name=collection,proto3" json:"collection,omitempty"`
-	CrdtType      int32                  `protobuf:"varint,2,opt,name=crdt_type,json=crdtType,proto3" json:"crdt_type,omitempty"`
+	CrdtType      int32                  `protobuf:"varint,2,opt,name=crdtType,proto3" json:"crdtType,omitempty"`
 	Key           string                 `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`
 	Value         []byte                 `protobuf:"bytes,4,opt,name=value,proto3" json:"value,omitempty"`
 	Hlc           uint64                 `protobuf:"varint,5,opt,name=hlc,proto3" json:"hlc,omitempty"`
-	NodeId        string                 `protobuf:"bytes,6,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	NodeId        string                 `protobuf:"bytes,6,opt,name=nodeId,proto3" json:"nodeId,omitempty"`
 	Tombstone     bool                   `protobuf:"varint,7,opt,name=tombstone,proto3" json:"tombstone,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -115,10 +115,10 @@ func (x *CRDTDelta) GetTombstone() bool {
 
 type GossipEnvelope struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AppId         string                 `protobuf:"bytes,1,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
+	AppId         string                 `protobuf:"bytes,1,opt,name=appId,proto3" json:"appId,omitempty"`
 	Deltas        []*CRDTDelta           `protobuf:"bytes,2,rep,name=deltas,proto3" json:"deltas,omitempty"`
 	Fingerprint   uint64                 `protobuf:"varint,3,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	SenderId      string                 `protobuf:"bytes,4,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
+	SenderId      string                 `protobuf:"bytes,4,opt,name=senderId,proto3" json:"senderId,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -185,22 +185,22 @@ var File_gossip_proto_gossip_proto protoreflect.FileDescriptor
 
 const file_gossip_proto_gossip_proto_rawDesc = "" +
 	"\n" +
-	"\x19gossip/proto/gossip.proto\x12\x11minerva.gossip.v1\"\xb9\x01\n" +
+	"\x19gossip/proto/gossip.proto\x12\x11minerva.gossip.v1\"\xb7\x01\n" +
 	"\tCRDTDelta\x12\x1e\n" +
 	"\n" +
 	"collection\x18\x01 \x01(\tR\n" +
-	"collection\x12\x1b\n" +
-	"\tcrdt_type\x18\x02 \x01(\x05R\bcrdtType\x12\x10\n" +
+	"collection\x12\x1a\n" +
+	"\bcrdtType\x18\x02 \x01(\x05R\bcrdtType\x12\x10\n" +
 	"\x03key\x18\x03 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x04 \x01(\fR\x05value\x12\x10\n" +
-	"\x03hlc\x18\x05 \x01(\x04R\x03hlc\x12\x17\n" +
-	"\anode_id\x18\x06 \x01(\tR\x06nodeId\x12\x1c\n" +
-	"\ttombstone\x18\a \x01(\bR\ttombstone\"\x9c\x01\n" +
-	"\x0eGossipEnvelope\x12\x15\n" +
-	"\x06app_id\x18\x01 \x01(\tR\x05appId\x124\n" +
+	"\x03hlc\x18\x05 \x01(\x04R\x03hlc\x12\x16\n" +
+	"\x06nodeId\x18\x06 \x01(\tR\x06nodeId\x12\x1c\n" +
+	"\ttombstone\x18\a \x01(\bR\ttombstone\"\x9a\x01\n" +
+	"\x0eGossipEnvelope\x12\x14\n" +
+	"\x05appId\x18\x01 \x01(\tR\x05appId\x124\n" +
 	"\x06deltas\x18\x02 \x03(\v2\x1c.minerva.gossip.v1.CRDTDeltaR\x06deltas\x12 \n" +
-	"\vfingerprint\x18\x03 \x01(\x04R\vfingerprint\x12\x1b\n" +
-	"\tsender_id\x18\x04 \x01(\tR\bsenderIdB+Z)github.com/bbmumford/minerva/gossip/protob\x06proto3"
+	"\vfingerprint\x18\x03 \x01(\x04R\vfingerprint\x12\x1a\n" +
+	"\bsenderId\x18\x04 \x01(\tR\bsenderIdB+Z)github.com/bbmumford/minerva/gossip/protob\x06proto3"
 
 var (
 	file_gossip_proto_gossip_proto_rawDescOnce sync.Once
