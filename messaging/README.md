@@ -1,5 +1,5 @@
 <!--
-Copyright (c) 2026 HSTLES / ORBTR Pty Ltd. All Rights Reserved.
+Copyright (c) 2026 HSTLES / ORBTR Pty Ltd. Licensed under MIT.
 Queries: licensing@hstles.com
 -->
 
@@ -183,7 +183,7 @@ Attachments persist through a `BlobStore` (see `attachments.go`), which is delib
 2. Content-addressed by the hash of the ciphertext (`EncryptedCID`) for mesh fetch.
 3. Hash-stamped with the plaintext digest (`CID`) for dedupe.
 
-The key itself rides inside the end-to-end encrypted Message body, so the blob store never sees plaintext and only intended recipients can decrypt. See [`_OTHER/mercury/encryption-model.md`](../../../_OTHER/mercury/encryption-model.md) §5 and [`rotation-guide.md`](../../../_OTHER/mercury/rotation-guide.md) for the full key-management story.
+The key itself rides inside the end-to-end encrypted Message body, so the blob store never sees plaintext and only intended recipients can decrypt.
 
 ---
 
@@ -208,8 +208,6 @@ The hook fires exactly once per successful `Conversation.Send` or `Broadcast.Pub
 |-----------------------------------------------------------|-----|
 | OTR-style repudiation / deniability                       | Complex protocol surface, niche audience, conflicts with the signed-record story every other capability depends on. |
 | Post-compromise group security beyond sender-key rotation | MLS-style continuous group key agreement is a major scope addition. Sender-key rotation (triggered on membership change and on a periodic schedule) covers the common "member left, rotate the key" case. |
-
-See [`_OTHER/mercury/roadmap.md`](../../../_OTHER/mercury/roadmap.md) for the longer-term security-feature backlog.
 
 ---
 

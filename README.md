@@ -19,6 +19,27 @@ Generated API reference (pkgsite) for each tagged release is published to GitHub
 
 ---
 
+## Repository Layout
+
+| Path | What it holds |
+|---|---|
+| `sdk` | `NodeConfig` and the node: peers, the peer manager, stores and streams; the API an application starts from |
+| `crdt` | the CRDTs (G-Counter, PN-Counter, LWW register and map, OR-Set, sequence), the hybrid logical clock and tombstone sweeping |
+| `gossip` | CRDT delta sync over per-peer HLC watermarks, rumor push, sharding and topics |
+| `identity` | key pairs and recovery mnemonics, passkeys for each platform, delegated device keys, revocation and trust |
+| `messaging` | end-to-end encrypted conversations (ratchet, sender keys), attachments, receipts, presence, edits and deletes; see [its README](messaging/README.md) |
+| `discovery` | peer discovery over DNS SRV, mDNS, peer exchange and relays |
+| `relay` | the relay client, relay authentication and relay selection |
+| `persistence` | the `Store` interface, a tiered store, and memory, file and IndexedDB backends |
+| `cache` | an LRU cache for content-addressed blobs |
+| `registry` | app manifests and community audit verdicts |
+| `governance` | proposals and their lifecycle |
+| `wasmcid` | the content-addressed WASM loader and its verification |
+| `wasm`, `wasm/cmd` | the browser build and its JavaScript bridge |
+| `cmd/min` | the `min` command: scaffold, develop and build a Minerva WASM application |
+| `examples` | chat, editor, game and todo applications |
+| `docs/GUIDE.md` | the developer guide |
+
 ## Executive Summary
 
 **Minerva** is a next-generation decentralised web platform where applications compile to WebAssembly (WASM) and execute entirely within users' browsers. Unlike traditional web apps that rely on central servers for computation, Minerva apps run as local, high-performance nodes in a peer-to-peer network. Content is content-addressed and distributed via IPFS or similar protocols, allowing anyone to host application code from any web server while all users access the same shared state.
@@ -451,4 +472,4 @@ func updateUI() {
 
 *Document Version: 2.0*
 *Concept Date: April 2026*
-*License: CC0 (Public Domain)*
+*License: MIT (see [LICENSE](LICENSE))*
