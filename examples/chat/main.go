@@ -1,8 +1,8 @@
 //go:build js && wasm
 
 /*
- * Copyright (c) 2026 HSTLES / ORBTR Pty Ltd. All Rights Reserved.
- * Queries: licensing@hstles.com
+ * Copyright (c) 2026 Brandon Miller-Mumford.
+ * Licensed under the MIT License; see LICENSE.
  *
  * Chat example — minimal WASM entry point demonstrating a peer-to-peer
  * chat room backed by Minerva's gossip broadcast and CRDT state.

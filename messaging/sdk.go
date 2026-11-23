@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2026 HSTLES / ORBTR Pty Ltd. All Rights Reserved.
- * Queries: licensing@hstles.com
+ * Copyright (c) 2026 Brandon Miller-Mumford.
+ * Licensed under the MIT License; see LICENSE.
  *
  * Messenger — the unified front-door. Applications typically hold one
  * Messenger per Node and call OpenConversation / OpenBroadcast / Presence /

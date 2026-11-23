@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2026 HSTLES / ORBTR Pty Ltd. All Rights Reserved.
- * Queries: licensing@hstles.com
+ * Copyright (c) 2026 Brandon Miller-Mumford.
+ * Licensed under the MIT License; see LICENSE.
  *
  * ecdh.go — Ed25519 -> X25519 converters and ECDH shared-secret helper
  * for the double-ratchet and related messaging primitives. These routines

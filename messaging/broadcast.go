@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2026 HSTLES / ORBTR Pty Ltd. All Rights Reserved.
- * Queries: licensing@hstles.com
+ * Copyright (c) 2026 Brandon Miller-Mumford.
+ * Licensed under the MIT License; see LICENSE.
  *
  * Broadcast — 1-to-many pub/sub with no membership bookkeeping. Any peer
  * can subscribe; only the publisher (whose PeerID was fixed at

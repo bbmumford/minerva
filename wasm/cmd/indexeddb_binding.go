@@ -1,8 +1,8 @@
 //go:build js && wasm
 
 /*
- * Copyright (c) 2026 HSTLES / ORBTR Pty Ltd. All Rights Reserved.
- * Queries: licensing@hstles.com
+ * Copyright (c) 2026 Brandon Miller-Mumford.
+ * Licensed under the MIT License; see LICENSE.
  *
  * IndexedDB persistence binding — wires the IndexedDB-backed persistence
  * store into Minerva WASM nodes. Each application gets its own IndexedDB
