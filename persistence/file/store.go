@@ -99,7 +99,7 @@ func (s *Store) HasKeypair() (bool, error) {
 
 type collectionFile struct {
 	CRDTType   crdt.CRDTType     `json:"crdtType"`
-	Entries    map[string]string  `json:"entries"`    // key -> base64(value)
+	Entries    map[string]string `json:"entries"` // key -> base64(value)
 	Tombstones map[string]uint64 `json:"tombstones"`
 }
 
@@ -180,8 +180,8 @@ func (s *Store) ListCollections() ([]string, error) {
 // --- peers ------------------------------------------------------------------
 
 type peerFile struct {
-	PeerID     string   `json:"peerId"`     // hex
-	Pubkey     string   `json:"pubkey"`     // hex
+	PeerID     string   `json:"peerId"` // hex
+	Pubkey     string   `json:"pubkey"` // hex
 	Petname    string   `json:"petname"`
 	Addresses  []string `json:"addresses"`
 	LastSeen   int64    `json:"lastSeen"`

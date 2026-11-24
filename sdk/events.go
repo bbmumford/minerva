@@ -10,7 +10,7 @@ import "sync"
 type EventType int
 
 const (
-	EventPeerConnect    EventType = iota + 1
+	EventPeerConnect EventType = iota + 1
 	EventPeerDisconnect
 	EventStateChange
 )
@@ -27,10 +27,10 @@ type Event struct {
 
 // EventBus provides typed, thread-safe event subscriptions for the SDK.
 type EventBus struct {
-	mu                   sync.RWMutex
-	peerConnectHandlers  []func(Peer)
-	peerDisconnHandlers  []func(peerID string)
-	stateChangeHandlers  map[string][]func(key string, value []byte)
+	mu                  sync.RWMutex
+	peerConnectHandlers []func(Peer)
+	peerDisconnHandlers []func(peerID string)
+	stateChangeHandlers map[string][]func(key string, value []byte)
 }
 
 // NewEventBus creates an initialised EventBus.

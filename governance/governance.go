@@ -173,8 +173,8 @@ type governanceEnvelope struct {
 type GovernanceRegistry struct {
 	mu            sync.RWMutex
 	proposals     map[string]*ProtocolProposal
-	votes         map[string][]*ProposalVote     // proposalID -> votes
-	voters        map[string]map[string]bool      // proposalID -> set of voter keys
+	votes         map[string][]*ProposalVote // proposalID -> votes
+	voters        map[string]map[string]bool // proposalID -> set of voter keys
 	whisperEngine *whisper.Engine
 }
 

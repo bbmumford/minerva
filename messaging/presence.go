@@ -34,9 +34,9 @@ type PresenceState struct {
 // Well-known state strings. Applications are free to use others (the
 // channel treats them as opaque).
 const (
-	StateOnline = "online"
-	StateAway   = "away"
-	StateTyping = "typing"
+	StateOnline  = "online"
+	StateAway    = "away"
+	StateTyping  = "typing"
 	StateOffline = "offline"
 )
 

@@ -23,9 +23,9 @@ var (
 
 // PasskeyCredential represents a registered WebAuthn passkey.
 type PasskeyCredential struct {
-	CredentialID  []byte    `json:"credentialId"`  // unique credential identifier
-	RPEntityID    string    `json:"rpEntityId"`    // relying party (e.g., "minerva.local")
-	UserHandle    []byte    `json:"userHandle"`    // opaque user handle (derived from pubkey)
+	CredentialID  []byte    `json:"credentialId"` // unique credential identifier
+	RPEntityID    string    `json:"rpEntityId"`   // relying party (e.g., "minerva.local")
+	UserHandle    []byte    `json:"userHandle"`   // opaque user handle (derived from pubkey)
 	CreatedAt     time.Time `json:"createdAt"`
 	LastUsedAt    time.Time `json:"lastUsedAt"`
 	DisplayName   string    `json:"displayName"`   // e.g., "MacBook Touch ID", "iPhone Face ID"
@@ -201,4 +201,3 @@ func decryptWithKey(encrypted, key []byte) ([]byte, error) {
 
 	return plaintext, nil
 }
-

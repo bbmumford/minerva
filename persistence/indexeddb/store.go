@@ -293,7 +293,7 @@ func (s *Store) HasKeypair() (bool, error) {
 
 type collectionRecord struct {
 	CRDTType   crdt.CRDTType     `json:"crdtType"`
-	Entries    map[string]string  `json:"entries"`    // key -> base64(value)
+	Entries    map[string]string `json:"entries"` // key -> base64(value)
 	Tombstones map[string]uint64 `json:"tombstones"`
 }
 

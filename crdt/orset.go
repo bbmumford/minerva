@@ -38,7 +38,7 @@ type ORSet struct {
 	mu       sync.RWMutex
 	name     string
 	elements map[string]map[string]orsetTag // value -> {tagID -> tag}
-	removed  map[string]uint64             // tombstoned tagIDs -> HLC when removed
+	removed  map[string]uint64              // tombstoned tagIDs -> HLC when removed
 	nodeID   string
 	hlc      *HLC
 	tagSeq   atomic.Uint64 // monotonic counter for unique tag generation

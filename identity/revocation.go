@@ -13,9 +13,9 @@ import (
 type RevocationRecord struct {
 	RevokedPublicKey ed25519.PublicKey `json:"revokedPublicKey"`
 	RevokerPublicKey ed25519.PublicKey `json:"revokerPublicKey"`
-	Reason           string           `json:"reason"`
-	RevokedAt        time.Time        `json:"revokedAt"`
-	Signature        []byte           `json:"signature"`
+	Reason           string            `json:"reason"`
+	RevokedAt        time.Time         `json:"revokedAt"`
+	Signature        []byte            `json:"signature"`
 }
 
 // revocationSigningPayload builds the canonical byte payload for signing:

@@ -15,10 +15,10 @@ import (
 type DeviceKeyCertificate struct {
 	DevicePublicKey ed25519.PublicKey `json:"devicePublicKey"`
 	MasterPublicKey ed25519.PublicKey `json:"masterPublicKey"`
-	Capabilities    []string         `json:"capabilities"`
-	ExpiresAt       time.Time        `json:"expiresAt"`
-	IssuedAt        time.Time        `json:"issuedAt"`
-	Signature       []byte           `json:"signature"`
+	Capabilities    []string          `json:"capabilities"`
+	ExpiresAt       time.Time         `json:"expiresAt"`
+	IssuedAt        time.Time         `json:"issuedAt"`
+	Signature       []byte            `json:"signature"`
 }
 
 // delegationSigningPayload builds the canonical byte payload for signing:

@@ -273,8 +273,8 @@ func (d *MDNSDiscoverer) buildQuery() []byte {
 	// Question: service type name, QTYPE=SRV (33), QCLASS=IN (1)
 	buf = append(buf, encodeDNSName(d.serviceType)...)
 	qtype := make([]byte, 4)
-	binary.BigEndian.PutUint16(qtype[0:2], 33)  // SRV
-	binary.BigEndian.PutUint16(qtype[2:4], 1)   // IN
+	binary.BigEndian.PutUint16(qtype[0:2], 33) // SRV
+	binary.BigEndian.PutUint16(qtype[2:4], 1)  // IN
 	buf = append(buf, qtype...)
 
 	return buf

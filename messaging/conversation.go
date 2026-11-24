@@ -38,11 +38,11 @@ import (
 // Envelope is the wire format for every message that crosses a conversation
 // topic. Kind discriminates the payload; only the relevant field is set.
 type envelope struct {
-	Kind       envKind            `json:"kind"`
-	Message    *Message           `json:"message,omitempty"`
-	MemberAdd  *memberOp          `json:"memberAdd,omitempty"`
-	MemberRem  *memberOp          `json:"memberRem,omitempty"`
-	SenderKey  *envelopeSenderKey `json:"senderKey,omitempty"`
+	Kind      envKind            `json:"kind"`
+	Message   *Message           `json:"message,omitempty"`
+	MemberAdd *memberOp          `json:"memberAdd,omitempty"`
+	MemberRem *memberOp          `json:"memberRem,omitempty"`
+	SenderKey *envelopeSenderKey `json:"senderKey,omitempty"`
 }
 
 // envKind discriminates envelope payloads.
