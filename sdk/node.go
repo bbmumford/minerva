@@ -194,16 +194,7 @@ func (n *Node) Start(ctx context.Context) error {
 	n.mu.Unlock()
 
 	// --- Discovery ---------------------------------------------------------
-	var discoverers []discovery.Discoverer
-
-	if n.config.EnableMDNS {
-		port := parseListenPort(n.config.ListenAddress)
-		discoverers = append(discoverers, discovery.NewMDNSDiscoverer(string(n.peerID), port))
-	}
-
-	if n.config.DNSBootstrapDomain != "" {
-		discoverers = append(discoverers, discovery.NewDNSDiscoverer(n.config.DNSBootstrapDomain))
-	}
+	discoverers := platformDiscoverers(n.config, string(n.peerID))
 
 	// PEX discovery — enabled only when the caller asked for it AND a Whisper
 	// engine constructed with whisper.WithPEX has been wired via
