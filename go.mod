@@ -5,9 +5,9 @@ go 1.25.0
 require (
 	github.com/ORBTR/aether v0.0.15
 	github.com/bbmumford/ledger v0.0.20
-	github.com/bbmumford/whisper v0.0.15
+	github.com/bbmumford/whisper v0.0.19
 	golang.org/x/crypto v0.50.0
-	golang.org/x/sys v0.43.0
+	golang.org/x/sys v0.44.0
 	google.golang.org/protobuf v1.36.11
 )
 
