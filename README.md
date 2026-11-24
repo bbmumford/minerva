@@ -86,10 +86,11 @@ Importers in the ORBTR estate:
 `identity` uses cgo for the platform passkey stores on macOS and Linux and has
 a cgo-free build for every other case; `persistence/file` and the mDNS and DNS
 discoverers build everywhere but js, and `persistence/indexeddb` and the DNS
-over HTTPS discoverer only for js/wasm. The `sdk` package does not build for
-js/wasm at this commit: `sdk/node.go` calls `discovery.NewMDNSDiscoverer` and
-`discovery.NewDNSDiscoverer`, which have no js build. The module's `go`
-directive is 1.25.0. Releases are cut by release-please from conventional
+over HTTPS discoverer only for js/wasm. A node starts the discoverers its
+platform has: mDNS and DNS SRV lookups natively; in the browser, where there
+is no multicast and no resolver, `EnableMDNS` is reported and skipped and the
+bootstrap domain is looked up over DNS over HTTPS. The module's `go` directive
+is 1.25.0. Releases are cut by release-please from conventional
 commits, and each tag publishes the API reference to the repository's GitHub
 Pages site (`.github/workflows/docs.yml`).
 
