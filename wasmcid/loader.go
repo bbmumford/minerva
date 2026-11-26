@@ -71,7 +71,9 @@ func (l *WASMLoader) fetchAndVerify(ctx context.Context, url, expectedCID string
 	if err != nil {
 		return nil, fmt.Errorf("wasmcid: fetch %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	// The body is read whole and its digest checked, or its error returned;
+	// a close error after that changes nothing the caller gets.
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("wasmcid: fetch %s: HTTP %d", url, resp.StatusCode)

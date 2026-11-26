@@ -89,7 +89,11 @@ func (sm *SyncManager) Start(ctx context.Context) error {
 		colName := col.Name
 		colType := col.CRDTType
 		sm.eventBus.OnStateChange(colName, func(key string, value []byte) {
-			sm.rumor.PushDelta(colName, crdt.Delta{
+			// PushDelta fails only when the rumor queue is full and drops the
+			// delta; the change stays in this node's store, and no other path
+			// sends it to peers until the collection anti-entropy (the TODOs
+			// below) exists. This callback has no caller to return it to.
+			_ = sm.rumor.PushDelta(colName, crdt.Delta{
 				Type:  crdt.CRDTType(colType),
 				Key:   key,
 				Value: value,

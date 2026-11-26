@@ -9,7 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
+	"strings"
 )
 
 // buildApp compiles the WASM binary from ./wasm/ and copies supporting
@@ -37,7 +37,7 @@ func buildApp() error {
 	fmt.Println("  -> dist/app.wasm")
 
 	// Copy wasm_exec.js from the Go installation.
-	wasmExecSrc := filepath.Join(runtime.GOROOT(), "lib", "wasm", "wasm_exec.js")
+	wasmExecSrc := filepath.Join(goroot(), "lib", "wasm", "wasm_exec.js")
 	if err := copyFile(wasmExecSrc, filepath.Join("dist", "wasm_exec.js")); err != nil {
 		// Not fatal — user may provide their own.
 		fmt.Printf("  Warning: could not copy wasm_exec.js from GOROOT: %v\n", err)
@@ -89,4 +89,16 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.WriteFile(dst, data, 0o644)
+}
+
+// goroot returns the Go root of the go command on PATH (the one this tool
+// runs for the build), falling back to GOROOT from the environment.
+func goroot() string {
+	out, err := exec.Command("go", "env", "GOROOT").Output()
+	if err == nil {
+		if root := strings.TrimSpace(string(out)); root != "" {
+			return root
+		}
+	}
+	return os.Getenv("GOROOT")
 }

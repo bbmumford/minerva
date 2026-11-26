@@ -221,7 +221,7 @@ func (m *Messenger) OpenConversation(id ChannelID, initialMembers []PeerID) (*Co
 			if peer == m.identity.PeerID() || c.IsMember(peer) {
 				continue
 			}
-			if err := c.AddMember(nil, peer); err != nil {
+			if err := c.AddMember(context.Background(), peer); err != nil {
 				return nil, err
 			}
 		}
@@ -247,14 +247,14 @@ func (m *Messenger) OpenConversation(id ChannelID, initialMembers []PeerID) (*Co
 	// Always auto-add self so the author can Send/Edit/Delete straight
 	// away AND so every other peer sees our AddMember envelope and can
 	// seal their own sender key to us (the catch-up path in conversation.go).
-	if err := c.AddMember(nil, m.identity.PeerID()); err != nil {
+	if err := c.AddMember(context.Background(), m.identity.PeerID()); err != nil {
 		return nil, err
 	}
 	for _, peer := range initialMembers {
 		if peer == m.identity.PeerID() {
 			continue
 		}
-		if err := c.AddMember(nil, peer); err != nil {
+		if err := c.AddMember(context.Background(), peer); err != nil {
 			return nil, err
 		}
 	}

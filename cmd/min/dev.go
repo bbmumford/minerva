@@ -93,7 +93,9 @@ func watchAndRebuild(ctx context.Context) {
 // collectModTimes walks the current directory for .go files and records
 // their modification times.
 func collectModTimes(modTimes map[string]time.Time) {
-	filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+	// The walk skips every entry it cannot read, so Walk's own error can only
+	// be the root's; the next poll walks again, so it is not kept.
+	_ = filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}

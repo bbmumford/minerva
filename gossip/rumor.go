@@ -45,8 +45,8 @@ func NewRumorPusher(engine *whisper.Engine, appID string) *RumorPusher {
 }
 
 // PushDelta queues a CRDT delta for immediate broadcast to peers.
-// Non-blocking: if the queue is full, the delta is dropped (the periodic
-// StatefulMerge sync will catch it).
+// Non-blocking: if the queue is full, the delta is dropped and the error says
+// so; the change stays in the store it came from.
 func (rp *RumorPusher) PushDelta(collection string, delta crdt.Delta) error {
 	select {
 	case rp.pending <- rumorItem{collection: collection, delta: delta}:

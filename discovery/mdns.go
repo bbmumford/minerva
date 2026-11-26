@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -75,7 +76,9 @@ func (d *MDNSDiscoverer) Discover(ctx context.Context) <-chan PeerAddress {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		// The listener's work is over when this goroutine returns; a close
+		// error has no reader.
+		defer func() { _ = conn.Close() }()
 
 		// Set up a background reader that processes mDNS responses.
 		responseCh := make(chan mdnsResponse, 32)
@@ -136,7 +139,9 @@ func (d *MDNSDiscoverer) Advertise(ctx context.Context, self PeerAddress) error 
 	}
 
 	go func() {
-		defer conn.Close()
+		// The reader's work is over when this goroutine returns; a close
+		// error has no reader.
+		defer func() { _ = conn.Close() }()
 
 		buf := make([]byte, mdnsMaxResponseSize)
 		for {
@@ -479,9 +484,10 @@ func (d *MDNSDiscoverer) parseTXTRdata(rdata []byte, resp *mdnsResponse) {
 				resp.addresses = strings.Split(value, ",")
 			}
 		case "ts":
-			var ts int64
-			fmt.Sscanf(value, "%d", &ts)
-			resp.timestamp = ts
+			// A timestamp that does not parse leaves the response undated (0).
+			if ts, err := strconv.ParseInt(value, 10, 64); err == nil {
+				resp.timestamp = ts
+			}
 		}
 	}
 }
