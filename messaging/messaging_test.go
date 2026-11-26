@@ -504,7 +504,11 @@ func TestBroadcast_RejectsForgedAuthor(t *testing.T) {
 	fake, _ := newTestIdentity(t)
 
 	sub, _ := NewBroadcast("news", real.PeerID(), bus)
-	defer sub.Close()
+	defer func() {
+		if err := sub.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	}()
 
 	var got atomic.Int32
 	sub.Subscribe(func(Message) { got.Add(1) })

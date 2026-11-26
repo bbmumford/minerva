@@ -45,7 +45,11 @@ func TestSyncManager_RegistersNoCollectionAsAStateTopic(t *testing.T) {
 	if err := sm.Start(ctx); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	defer sm.Stop()
+	defer func() {
+		if err := sm.Stop(); err != nil {
+			t.Errorf("Stop: %v", err)
+		}
+	}()
 
 	if err := engine.RegisterTopic(sm.topicName("todos"), whisper.TopicConfig{Mode: whisper.BroadcastOnly}); err != nil {
 		t.Fatalf("the collection's topic is still registered after Start: %v", err)
