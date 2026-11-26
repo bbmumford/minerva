@@ -25,6 +25,10 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      # The identity package's Linux passkey support links libfido2 through cgo.
+      - name: Install libfido2
+        run: sudo apt-get update && sudo apt-get install -y libfido2-dev
+
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
