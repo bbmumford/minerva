@@ -3,8 +3,8 @@ module github.com/bbmumford/minerva
 go 1.25.0
 
 require (
-	github.com/ORBTR/aether v0.0.15
-	github.com/bbmumford/ledger v0.0.20
+	github.com/ORBTR/aether v0.0.118
+	github.com/bbmumford/ledger v0.0.21
 	github.com/bbmumford/whisper v0.0.19
 	golang.org/x/crypto v0.50.0
 	golang.org/x/sys v0.44.0
@@ -34,9 +34,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 )
-
-replace github.com/ORBTR/aether => ../aether
-
-replace github.com/bbmumford/whisper => ../whisper
-
-replace github.com/bbmumford/ledger => ../ledger

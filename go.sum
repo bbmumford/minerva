@@ -1,5 +1,11 @@
 filippo.io/edwards25519 v1.2.0 h1:crnVqOiS4jqYleHd9vaKZ+HKtHfllngJIiOpNpoJsjo=
 filippo.io/edwards25519 v1.2.0/go.mod h1:xzAOLCNug/yB62zG1bQ8uziwrIqIuxhctzJT18Q77mc=
+github.com/ORBTR/aether v0.0.118 h1:TaBl5HnGDeABaLlKcxrbUQWUUnd9ChrYGJYv8UAR5vA=
+github.com/ORBTR/aether v0.0.118/go.mod h1:0KgU4+SQrm0ENfx6PeI1pz66tSqKwTDHpPShjT15WiU=
+github.com/bbmumford/ledger v0.0.21 h1:vRkqo1Z7d3qTZxEvzYI6UClKbKV0dUEDs2jJRKV/LM0=
+github.com/bbmumford/ledger v0.0.21/go.mod h1:01jPiXyZKVx/pMuf42CFWykSApnlWmOK8fE2HpI6h44=
+github.com/bbmumford/whisper v0.0.19 h1:uw8UniexhitRwLTrHePWQcrdW2UuOrZ+Y6J7vW4wikU=
+github.com/bbmumford/whisper v0.0.19/go.mod h1:8UI/5GBktVrs2Ab3+z3mU/VgpFOGsMi4n8k7dgQsxSA=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
