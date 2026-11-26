@@ -1,6 +1,6 @@
 <!--
-Copyright (c) 2026 HSTLES / ORBTR Pty Ltd. Licensed under MIT.
-Queries: licensing@hstles.com
+Copyright (c) 2026 Brandon Miller-Mumford.
+Licensed under the MIT License; see LICENSE.
 -->
 
 # Minerva Messaging
@@ -229,4 +229,4 @@ No centrally-managed version registry — peers discover each other's capability
 
 ## License
 
-See the repository `LICENSE`. Copyright &copy; 2026 HSTLES / ORBTR Pty Ltd.
+See the repository `LICENSE`. Copyright &copy; 2026 Brandon Miller-Mumford.
