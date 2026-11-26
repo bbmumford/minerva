@@ -6,8 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
+
+	"github.com/bbmumford/minerva/crdt"
 )
 
 // DeviceKeyCertificate represents a delegated device key signed by a master key.
@@ -21,25 +22,37 @@ type DeviceKeyCertificate struct {
 	Signature       []byte            `json:"signature"`
 }
 
-// delegationSigningPayload builds the canonical byte payload for signing:
-// devicePubKey || capabilities (sorted, joined with ",") || expiresAt (unix nanos, big-endian) || issuedAt (unix nanos, big-endian)
-func delegationSigningPayload(devicePubKey ed25519.PublicKey, caps []string, expiresAt, issuedAt time.Time) []byte {
+// delegationDomain begins every device-key certificate's signed payload, so a
+// master key's signature over a certificate can never be read as its
+// signature over any other message it signs.
+const delegationDomain = "minerva/identity/device-key-certificate/v1"
+
+// delegationSigningPayload builds the bytes a master key signs for a device key
+// certificate: the domain, the device and master keys (fixed 32 bytes each),
+// the issue and expiry times, then the capability count and each capability
+// with its length before it. Every capability keeps its own boundary, so
+// {"read,write"} and {"read", "write"} sign different payloads.
+func delegationSigningPayload(devicePubKey, masterPubKey ed25519.PublicKey, caps []string, expiresAt, issuedAt time.Time) []byte {
 	sorted := make([]string, len(caps))
 	copy(sorted, caps)
 	sort.Strings(sorted)
-	joined := strings.Join(sorted, ",")
 
-	// devicePubKey (32) + joined caps + 8 bytes expiresAt + 8 bytes issuedAt
-	buf := make([]byte, 0, len(devicePubKey)+len(joined)+16)
+	size := len(delegationDomain) + 1 + len(devicePubKey) + len(masterPubKey) + 8 + 8 + 4
+	for _, c := range sorted {
+		size += 4 + len(c)
+	}
+	buf := make([]byte, 0, size)
+	buf = append(buf, delegationDomain...)
+	buf = append(buf, 0)
 	buf = append(buf, devicePubKey...)
-	buf = append(buf, []byte(joined)...)
-
-	var ts [8]byte
-	binary.BigEndian.PutUint64(ts[:], uint64(expiresAt.UnixNano()))
-	buf = append(buf, ts[:]...)
-	binary.BigEndian.PutUint64(ts[:], uint64(issuedAt.UnixNano()))
-	buf = append(buf, ts[:]...)
-
+	buf = append(buf, masterPubKey...)
+	buf = binary.BigEndian.AppendUint64(buf, uint64(issuedAt.UnixNano()))
+	buf = binary.BigEndian.AppendUint64(buf, uint64(expiresAt.UnixNano()))
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(sorted)))
+	for _, c := range sorted {
+		buf = binary.BigEndian.AppendUint32(buf, uint32(len(c)))
+		buf = append(buf, c...)
+	}
 	return buf
 }
 
@@ -62,7 +75,7 @@ func DelegateDevice(masterKeypair *Keypair, devicePubKey ed25519.PublicKey, caps
 	now := time.Now()
 	expiresAt := now.Add(ttl)
 
-	payload := delegationSigningPayload(devicePubKey, caps, expiresAt, now)
+	payload := delegationSigningPayload(devicePubKey, masterKeypair.PublicKey, caps, expiresAt, now)
 	sig := masterKeypair.Sign(payload)
 
 	// Store capabilities sorted for deterministic comparison.
@@ -81,15 +94,24 @@ func DelegateDevice(masterKeypair *Keypair, devicePubKey ed25519.PublicKey, caps
 }
 
 // VerifyDeviceCertificate checks that the certificate signature is valid
-// against the master public key and the canonical payload.
+// against the master public key and the canonical payload, and that the
+// certificate is within its validity window now: not expired, and not issued
+// later than now by more than the clock drift peers allow (crdt.MaxDrift).
 func VerifyDeviceCertificate(cert *DeviceKeyCertificate) bool {
+	return verifyDeviceCertificateAt(cert, time.Now())
+}
+
+func verifyDeviceCertificateAt(cert *DeviceKeyCertificate, now time.Time) bool {
 	if cert == nil {
 		return false
 	}
 	if len(cert.MasterPublicKey) != ed25519.PublicKeySize || len(cert.DevicePublicKey) != ed25519.PublicKeySize {
 		return false
 	}
-	payload := delegationSigningPayload(cert.DevicePublicKey, cert.Capabilities, cert.ExpiresAt, cert.IssuedAt)
+	if !now.Before(cert.ExpiresAt) || cert.IssuedAt.After(now.Add(crdt.MaxDrift)) {
+		return false
+	}
+	payload := delegationSigningPayload(cert.DevicePublicKey, cert.MasterPublicKey, cert.Capabilities, cert.ExpiresAt, cert.IssuedAt)
 	return ed25519.Verify(cert.MasterPublicKey, payload, cert.Signature)
 }
 

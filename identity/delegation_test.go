@@ -148,3 +148,41 @@ func TestVerifyCertificateBadKeyLengths(t *testing.T) {
 		t.Fatal("bad device key length should not verify")
 	}
 }
+
+// A certificate past its expiry no longer verifies: a device key's grant ends
+// when the master said it would.
+func TestVerifyCertificateRefusesAnExpiredCertificate(t *testing.T) {
+	master, _ := Generate()
+	device, _ := Generate()
+	cert, err := DelegateDevice(master, device.PublicKey, []string{"read"}, time.Millisecond)
+	if err != nil {
+		t.Fatalf("DelegateDevice: %v", err)
+	}
+	time.Sleep(5 * time.Millisecond)
+	if VerifyDeviceCertificate(cert) {
+		t.Fatal("an expired certificate verified")
+	}
+}
+
+// Each capability keeps its own boundary in the signed payload: a certificate
+// cannot be re-read with its capabilities split or joined differently, whether
+// the count changes ({"read,write"} as {"read", "write"}) or not ({"ab", "c"}
+// as {"a", "bc"}).
+func TestVerifyCertificateRefusesRegroupedCapabilities(t *testing.T) {
+	master, _ := Generate()
+	device, _ := Generate()
+	for _, c := range []struct{ signed, forged []string }{
+		{[]string{"read,write"}, []string{"read", "write"}},
+		{[]string{"ab", "c"}, []string{"a", "bc"}},
+	} {
+		cert, err := DelegateDevice(master, device.PublicKey, c.signed, time.Hour)
+		if err != nil {
+			t.Fatalf("DelegateDevice: %v", err)
+		}
+		forged := *cert
+		forged.Capabilities = c.forged
+		if VerifyDeviceCertificate(&forged) {
+			t.Errorf("a certificate for %q verified as %q", c.signed, c.forged)
+		}
+	}
+}
