@@ -1,10 +1,11 @@
 module github.com/bbmumford/minerva
 
-go 1.25.0
+go 1.27.4
 
 require (
 	github.com/ORBTR/aether v0.0.118
 	github.com/bbmumford/ledger v0.0.21
+	github.com/bbmumford/swarm v0.2.0
 	github.com/bbmumford/whisper v0.0.19
 	golang.org/x/crypto v0.50.0
 	golang.org/x/sys v0.44.0
