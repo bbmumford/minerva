@@ -1,6 +1,7 @@
 # Minerva — AI Engine Release
-# Triggered on version tags (v*). Runs quality checks, builds WASM binary,
-# builds CLI for all platforms, and creates a GitHub Release with all artifacts.
+# Runs on each version tag (v*) and when dispatched: quality checks, the WASM
+# binary and the CLI for every platform. Only a tag's run creates the GitHub
+# Release with every artifact; a run dispatched on a branch checks and builds.
 
 name: Release
 
