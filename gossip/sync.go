@@ -224,20 +224,6 @@ func (cs *CRDTStateStore) Apply(data []byte) error {
 	return fmt.Errorf("gossip: collection %q holds no CRDT state to merge delta %q into", cs.collection, delta.Key)
 }
 
-// marshalEnvelope serialises a GossipEnvelope for wire transmission.
-func marshalEnvelope(env *gossippb.GossipEnvelope) ([]byte, error) {
-	return proto.Marshal(env)
-}
-
-// unmarshalEnvelope deserialises a GossipEnvelope from wire bytes.
-func unmarshalEnvelope(data []byte) (*gossippb.GossipEnvelope, error) {
-	var env gossippb.GossipEnvelope
-	if err := proto.Unmarshal(data, &env); err != nil {
-		return nil, err
-	}
-	return &env, nil
-}
-
 // deltaToProto converts a crdt.Delta to the protobuf representation.
 func deltaToProto(collection string, d crdt.Delta) *gossippb.CRDTDelta {
 	return &gossippb.CRDTDelta{
@@ -248,18 +234,6 @@ func deltaToProto(collection string, d crdt.Delta) *gossippb.CRDTDelta {
 		Hlc:        d.HLC,
 		NodeId:     d.NodeID,
 		Tombstone:  d.Tombstone,
-	}
-}
-
-// protoToDelta converts a protobuf CRDTDelta to the crdt.Delta type.
-func protoToDelta(pb *gossippb.CRDTDelta) crdt.Delta {
-	return crdt.Delta{
-		Type:      crdt.CRDTType(pb.CrdtType),
-		Key:       pb.Key,
-		Value:     pb.Value,
-		HLC:       pb.Hlc,
-		NodeID:    pb.NodeId,
-		Tombstone: pb.Tombstone,
 	}
 }
 

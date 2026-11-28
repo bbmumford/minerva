@@ -20,12 +20,7 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
-// Double-ratchet protocol version. Wire-compatible peers advertise this
-// value in their signed profile; mismatched peers fall back to Version 0
-// (NaCl box).
 const (
-	ratchetVersion byte = 1
-
 	// maxSkippedKeys caps skipped message keys cached per receiving chain
 	// to prevent memory blowup from hostile peers or gap storms.
 	maxSkippedKeys = 100

@@ -30,18 +30,6 @@ func newTestIdentity(t *testing.T) (Identity, *identity.Keypair) {
 	return &KeypairIdentity{KP: kp}, kp
 }
 
-// newTestMessenger spins up a Messenger against the shared bus.
-func newTestMessenger(t *testing.T, bus *LocalBus) (*Messenger, Identity) {
-	t.Helper()
-	ident, _ := newTestIdentity(t)
-	m, err := NewMessenger(ident, bus)
-	if err != nil {
-		t.Fatalf("new messenger: %v", err)
-	}
-	t.Cleanup(func() { _ = m.Close() })
-	return m, ident
-}
-
 // waitFor calls check repeatedly until it returns true or timeout elapses.
 func waitFor(t *testing.T, timeout time.Duration, check func() bool) {
 	t.Helper()

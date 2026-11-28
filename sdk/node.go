@@ -53,9 +53,6 @@ type Node struct {
 	// persistence is the backing store for state (memory by default).
 	persistence persistence.Store
 
-	// transport is the underlying Aether session (nil until Start).
-	transport aether.Session
-
 	// whisperEngine is the gossip broadcast engine (nil until wired).
 	whisperEngine *whisper.Engine
 	// ownsEngine indicates whether Stop() should call whisperEngine.Stop().

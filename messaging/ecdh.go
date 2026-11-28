@@ -70,14 +70,6 @@ func sharedSecret(ourPriv ed25519.PrivateKey, theirPub ed25519.PublicKey) ([]byt
 	return shared, nil
 }
 
-// hexDecodePeerID decodes a PeerID back to a 32-byte Ed25519 public key.
-// Returns an error if the string is not valid lowercase hex or is the
-// wrong length. Thin wrapper so call sites outside types.go can reuse
-// the conversion without re-implementing it.
-func hexDecodePeerID(p PeerID) ([]byte, error) {
-	return peerIDFromHex(p)
-}
-
 // --- Ed25519 -> X25519 birational map --------------------------------------
 //
 // Montgomery u = (1 + y) / (1 - y) mod p, where p = 2^255 - 19 and y is the
