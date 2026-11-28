@@ -156,9 +156,9 @@ func (p *NativePasskeyProvider) Register(ctx context.Context, rpID string, userH
 	if rc := C.fido_cred_set_rk(cred, C.FIDO_OPT_TRUE); rc != C.FIDO_OK {
 		return nil, nil, fmt.Errorf("passkey-linux: set_rk: %s", fidoErrStr(rc))
 	}
-	if rc := C.fido_cred_set_uv(cred, C.FIDO_OPT_TRUE); rc != C.FIDO_OK {
-		// Not fatal — not all authenticators support UV.
-	}
+	// User verification is asked for but not required: not every
+	// authenticator supports it, so its result code is not checked.
+	_ = C.fido_cred_set_uv(cred, C.FIDO_OPT_TRUE)
 
 	dev := C.minerva_fido_open_first()
 	if dev == nil {
